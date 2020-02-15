@@ -274,6 +274,70 @@ permdets$rugosity <- as.factor(permdets$rugosity) #variable types have to be con
 permdets$DRc <- predict(Refforest, permdets)
 
 
+#plot DRc spatially:
+
+#summarise by site:
+DRsite <- permdets %>% group_by(ID) %>% summarise(mDRc=mean(DRc), sd=sd(DRc), UCI=mDRc+sd*1.96,LCI=mDRc-sd*1.96,lat=mean(lat),lon=mean(lon))
+head(DRsite)
+
+#if you register an API with Google you can get a key to access their map content 
+library(ggmap)
+#register_google(key = "INSERT KEY HERE")
+#FLmap <- get_googlemap(center = c(lon=-81.9, lat=24.6),
+#                       zoom = 10, size = c(640, 640), scale = 4,
+#                       maptype = c("satellite"))
+
+readRDS('FLmap.rds')
+
+ggmap(FLmap, extent='normal')+
+  scale_x_continuous(limits=c(-82.05, -81.75))+
+  scale_y_continuous(limits=c(24.45, 24.68))+
+  ylab("Latitude") +
+  xlab("Longitude")+
+  geom_point(data=DRsite, aes(x=lon, y=lat, size=mDRc),fill="yellow", alpha=0.5, pch=21)
+
+
+
+#animate spatiotemporally:
+str(permdets)
+permdets$hourpos <- as.POSIXct(permdets$hour, tz="US/Eastern", format="%Y-%m-%d %H")
+permdets$day <- strftime(permdets$hourpos, format="%Y-%m-%d")
+permdets$day <- as.POSIXct(permdets$day, tz="US/Eastern", format="%Y-%m-%d")
+permdets$lnDet <- log(permdets$Det+1)
+
+
+#look at first couple weeks:
+permdetssub <- permdets %>% filter(hourpos<"2018-06-08 00:00:00")
+
+
+library(gganimate)
+
+p <- ggmap(FLmap) + 
+  theme(text = element_text(size = 17))+
+  geom_point(data = permdetssub, mapping = aes(x = lon, y = lat, size=DRc, col=lnDet, group=ID),alpha=0.7)+
+  scale_color_continuous(low = "yellow", high = "red")+
+  scale_size_continuous(name="DRc", range=c(0.01,10))+
+  labs(title = "{frame_time}")+
+  scale_x_continuous(limits=c(-82.05, -81.75))+
+  scale_y_continuous(limits=c(24.45, 24.68))+
+  transition_time(hourpos)
+
+length(unique(permdetssub$hourpos))
+pAnim <- animate(p, duration=20, nframes=167, width= 600, height=600) 
+#watch it:
+pAnim
+
+#save it:
+anim_save("pAnim.gif")
+
+
+
+
+
+
+
+
+
 #correct number of detections
 permdets$Detc <- permdets$Det/(permdets$DRc/mean(permdets$DRc))
 head(permdets)
@@ -298,5 +362,10 @@ ggplot(permdetsmelt, aes(x=Diel, y=logvalue,col=variable))+stat_summary(fun.y=me
 ggplot(permdetsmelt, aes(x=tidemeters, y=logvalue,col=variable))+geom_smooth()+
   ylab("log(detections)")+
   facet_wrap(~habitat)+xlab("Tide height (m)")+coord_cartesian(ylim=c(0,3))
+
+
+
+
+
 
 
