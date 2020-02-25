@@ -1,5 +1,5 @@
-# Brownscombe et al. (2019) A practical method to account for variation in detection range in acoustic telemetry 
-# arrays to accurately quantify the spatial ecology of aquatic animals. Methods in Ecology and Evolution
+# Brownscombe et al. (2020) A practical method to account for variation in detection range in acoustic telemetry 
+# arrays to accurately quantify the spatial ecology of aquatic animals. Methods in Ecology and Evolution 11: 82-94
 
 # This R script covers the methods used in the above paper to derive a detection range correction factor to correct 
 # animal detection data for spatiotemporal variations in the detection ranges of a passive acoustic receiver array 
@@ -11,6 +11,14 @@
 
 # In order to run the code below you will need to set your working directory to where you placed the data. You may
 # also need to install the necessary packages before calling them. 
+
+library(ggplot2)
+library(ggmap)
+library(gganimate)
+library(reshape2)
+library(dplyr)
+library(randomForest)
+
 
 
 # 1. Range testing data ####
@@ -153,7 +161,6 @@ head(stations)
 datetimestation <- merge(datetime, stations)
 
 # summarise the number of detections by study hour (you can also do this by other scales such as day)
-library(dplyr)
 refdata3 <- refdata2 %>% group_by(hour, station) %>% summarise(dets=length(station)) %>% as.data.frame()
 head(refdata3)
 
@@ -199,6 +206,7 @@ hist(refdata$DEvc)
 
 
 
+
 # Integrate MR with the data set to calculate DRc:
 head(MR)
 refdata$MR <- MR$distm[match(refdata$station, MR$station)]
@@ -212,7 +220,6 @@ min(refdata$DRc)
 
 
 #examine the relationship between MR, DEvc and DRc:
-library(ggplot2)
 ggplot(refdata, aes(x=MR, y=DRc, col=DEvc))+geom_point()+xlab("MR (m)")+
   ylab("DRc")+labs(colour="DEvc")+theme(legend.position=c(0.15,0.8))+
   theme(axis.line.x=element_line(),
@@ -287,7 +294,7 @@ library(ggmap)
 #                       zoom = 10, size = c(640, 640), scale = 4,
 #                       maptype = c("satellite"))
 
-readRDS('FLmap.rds')
+FLmap <- readRDS('FLmap.rds')
 
 ggmap(FLmap, extent='normal')+
   scale_x_continuous(limits=c(-82.05, -81.75))+
@@ -301,8 +308,6 @@ ggmap(FLmap, extent='normal')+
 #animate spatiotemporally:
 str(permdets)
 permdets$hourpos <- as.POSIXct(permdets$hour, tz="US/Eastern", format="%Y-%m-%d %H")
-permdets$day <- strftime(permdets$hourpos, format="%Y-%m-%d")
-permdets$day <- as.POSIXct(permdets$day, tz="US/Eastern", format="%Y-%m-%d")
 permdets$lnDet <- log(permdets$Det+1)
 
 
@@ -323,9 +328,13 @@ p <- ggmap(FLmap) +
   transition_time(hourpos)
 
 length(unique(permdetssub$hourpos))
-pAnim <- animate(p, duration=20, nframes=167, width= 600, height=600) 
+
+install.packages('av')
+library(av)
+pAnim <- animate(p, duration=20, nframes=167, width= 600, height=600, renderer = av_renderer()) 
 #watch it:
 pAnim
+?animate()
 
 #save it:
 anim_save("pAnim.gif")
@@ -347,7 +356,6 @@ head(permdets)
 permdetsP <- permdets %>% filter(Det>0)
 
 #make long format for plotting
-library(reshape2)
 permdetsmelt <- melt(permdetsP, measure.vars=c("Det","Detc"))
 head(permdetsmelt)
 permdetsmelt$logvalue <- log(permdetsmelt$value)
